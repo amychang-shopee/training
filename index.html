@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>Enterprise Gantt (Commercial Grade)</title>
+
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    margin: 0;
+    padding: 20px;
+}
+
+.toolbar {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:10px;
+}
+
+.wrapper {
+    border:1px solid #ddd;
+    overflow:auto;
+    white-space:nowrap;
+}
+
+/* HEADER */
+.header {
+    display:flex;
+    position:sticky;
+    top:0;
+    background:white;
+    z-index:10;
+    border-bottom:1px solid #ccc;
+}
+
+.cell {
+    min-width:40px;
+    text-align:center;
+    font-size:11px;
+    border-left:1px solid #eee;
+}
+
+.weekend { background:#ffe6e6; }
+.holiday { background:#ffd59e; }
+
+/* ROW */
+.row {
+    position:relative;
+    height:42px;
+    border-bottom:1px solid #eee;
+}
+
+.task {
+    position:absolute;
+    height:28px;
+    top:6px;
+    border-radius:4px;
+    color:white;
+    font-size:12px;
+    padding:4px;
+    cursor:move;
+    user-select:none;
+}
+
+.p1 { background:#4CAF50; }
+.p2 { background:#2196F3; }
+.p3 { background:#FF9800; }
+</style>
+</head>
+
+<body>
+
+<div class="toolbar">
+Start <input type="date" id="start" value="2024-04-01">
+End <input type="date" id="end" value="2024-06-30">
+
+<select id="zoom">
+<option value="day">Day</option>
+<option value="week">Week</option>
+<option value="month">Month</option>
+</select>
+
+<button onclick="render()">Apply</button>
+</div>
+
+<div class="wrapper">
+<div id="header" class="header"></div>
+<div id="body"></div>
+</div>
+
+<script>
+
+const holidays = ["2024-04-04","2024-04-05","2024-05-01"];
+
+let tasks = [
+ {id:"t1",name:"專案一",start:"2024-04-01",end:"2024-06-18",cls:"p1"},
+ {id:"t2",name:"專案二",start:"2024-04-15",end:"2024-05-30",cls:"p2"},
+ {id:"t3",name:"專案三",start:"2024-05-15",end:"2024-06-30",cls:"p3"}
+];
+
+let px = 40;
+
+function d(s){return new Date(s);}
+
+function diff(a,b){
+ return Math.round((b-a)/86400000);
+}
+
+function fmt(d){
+ return d.toISOString().split("T")[0];
+}
+
+function render(){
+
+ let start = d(startEl().value);
+ let end = d(endEl().value);
+ let zoom = zoomEl().value;
+
+ if(zoom==="week") px=14;
+ else if(zoom==="month") px=6;
+ else px=40;
+
+ let total = diff(start,end);
+
+ renderHeader(start,total);
+ renderBody(start,total);
+ bind();
+}
+
+function renderHeader(start,total){
+
+ let h = document.getElementById("header");
+ h.innerHTML="";
+
+ for(let i=0;i<=total;i++){
+   let dt = new Date(start);
+   dt.setDate(dt.getDate()+i);
+
+   let div = document.createElement("div");
+   div.className="cell";
+   div.style.minWidth=px+"px";
+   div.innerText=dt.getDate();
+
+   if(dt.getDay()===0||dt.getDay()===6) div.classList.add("weekend");
+
+   if(holidays.includes(fmt(dt))) div.classList.add("holiday");
+
+   h.appendChild(div);
+ }
+}
+
+function renderBody(start,total){
+
+ let body = document.getElementById("body");
+ body.innerHTML="";
+
+ tasks.forEach(t=>{
+
+   let row = document.createElement("div");
+   row.className="row";
+   row.style.width=(total*px)+"px";
+
+   let s = d(t.start);
+   let e = d(t.end);
+
+   let left = diff(start,s)*px;
+   let width = diff(s,e)*px;
+
+   let task = document.createElement("div");
+   task.className="task "+t.cls;
+   task.id=t.id;
+   task.style.left=left+"px";
+   task.style.width=width+"px";
+   task.innerText=t.name;
+
+   row.appendChild(task);
+   body.appendChild(row);
+ });
+}
+
+function bind(){
+
+ interact(".task")
+ .draggable({
+   listeners:{
+     move(e){
+       let x = (parseFloat(e.target.dataset.x)||0)+e.dx;
+       e.target.dataset.x=x;
+       e.target.style.left=x+"px";
+     },
+     end(e){ sync(e.target); }
+   }
+ })
+ .resizable({
+   edges:{left:true,right:true},
+   listeners:{
+     move(e){
+       let x=parseFloat(e.target.style.left)||0;
+       e.target.style.left=(x+e.deltaRect.left)+"px";
+       e.target.style.width=e.rect.width+"px";
+     },
+     end(e){ sync(e.target); }
+   }
+ });
+}
+
+function sync(el){
+
+ let start = d(startEl().value);
+
+ let left = parseFloat(el.style.left);
+ let width = parseFloat(el.style.width);
+
+ let sOffset = Math.round(left/px);
+ let duration = Math.round(width/px);
+
+ let s = new Date(start);
+ s.setDate(s.getDate()+sOffset);
+
+ let e = new Date(s);
+ e.setDate(e.getDate()+duration);
+
+ let t = tasks.find(x=>x.id===el.id);
+ t.start=fmt(s);
+ t.end=fmt(e);
+}
+
+function startEl(){return document.getElementById("start");}
+function endEl(){return document.getElementById("end");}
+function zoomEl(){return document.getElementById("zoom");}
+
+render();
+
+</script>
+
+</body>
+</html>
